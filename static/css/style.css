@@ -1,0 +1,40 @@
+body {
+  background-color: #f5fff5;
+  font-family: "Poppins", sans-serif;
+}
+
+.card {
+  border: none;
+  background: #ffffff;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.08);
+}
+
+.camera-btn {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background-color: #28a745;
+  border: 4px solid #c8f7c5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 10px auto;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.camera-btn:hover {
+  background-color: #218838;
+  transform: scale(1.05);
+}
+
+.camera-btn i {
+  color: white;
+  font-size: 32px;
+}
+
+footer {
+  margin-top: 30px;
+}
+
