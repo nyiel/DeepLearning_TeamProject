@@ -1,36 +1,69 @@
-@app.route('/predict', methods=['POST'])
-def predict():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part in request'}), 400
+import os
+import json
+import numpy as np
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing import image
+from ..preprocess import load_and_preprocess
+from ..gradcam import GradCAM
 
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
 
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        unique_name = f"{uuid.uuid4().hex}_{filename}"
-        file_path = UPLOAD_FOLDER / unique_name
-        file.save(file_path)
+class ModelWrapper:
+    def __init__(self, model_dir, labels_path):
+        # load model
+        if not os.path.exists(model_dir):
+            raise FileNotFoundError(f"Model directory not found: {model_dir}")
 
-        # Preprocess and predict
-        img_array = preprocess_image_for_model(file_path)
-        preds = model.predict(img_array)
-        pred_idx = np.argmax(preds[0])
-        pred_label = class_names[pred_idx]
-        confidence = float(np.max(preds[0]) * 100)
+        # Try to load a SavedModel or .h5 / .keras
+        try:
+            self.model = load_model(model_dir)
+        except Exception:
+            # try loading specific file
+            possible = [f for f in os.listdir(model_dir)
+                        if f.endswith('.h5') or f.endswith('.keras')]
+            if possible:
+                self.model = load_model(os.path.join(model_dir, possible[0]))
+            else:
+                raise
 
-        # Grad-CAM
-        heatmap = make_gradcam_heatmap(img_array, model)
-        gradcam_path = RESULTS_FOLDER / f"gradcam_{unique_name}"
-        save_gradcam(file_path, heatmap, cam_path=gradcam_path)
+        # labels
+        with open(labels_path, 'r', encoding='utf-8') as f:
+            self.labels = json.load(f)
 
-        # ✅ FIXED: Grad-CAM URL relative to static folder
-        return jsonify({
-            'filename': filename,
-            'prediction': pred_label,
-            'confidence': round(confidence, 2),
-            'gradcam': f"/static/results/{gradcam_path.name}"
-        })
-    else:
-        return jsonify({'error': 'Unsupported file type'}), 400
+        # create gradcam helper
+        self.gradcam = GradCAM(self.model)
+
+    def predict_with_explanation(self, image_path, save_dir='static/uploads'):
+        x = load_and_preprocess(image_path)
+        preds = self.model.predict(x)[0]
+
+        # get top-3 indices
+        top_idx = preds.argsort()[-3:][::-1]
+        top_probs = preds[top_idx]
+
+        # create gradcam overlay for top-1
+        cam_path = None
+        try:
+            cam = self.gradcam.compute_heatmap(
+                image_path, class_index=int(top_idx[0])
+            )
+
+            import cv2
+            orig = cv2.imread(image_path)
+            heatmap = cv2.resize(cam, (orig.shape[1], orig.shape[0]))
+            heatmap = np.uint8(255 * heatmap)
+            heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+
+            overlay = cv2.addWeighted(orig, 0.6, heatmap, 0.4, 0)
+
+            cam_filename = (
+                os.path.basename(image_path).rsplit('.', 1)[0] + '_gradcam.jpg'
+            )
+            cam_path = os.path.join(save_dir, cam_filename)
+
+            cv2.imwrite(cam_path, overlay)
+
+        except Exception as e:
+            cam_path = image_path  # fallback to original
+
+        return top_probs.tolist(), top_idx.tolist(), cam_path
+

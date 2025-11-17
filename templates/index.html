@@ -6,41 +6,155 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    body {
+      background: linear-gradient(to right, #e0f7e0, #f5fff5);
+      font-family: "Segoe UI", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 50px 0;
+    }
+
+    .card {
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+      background-color: #ffffffcc;
+      backdrop-filter: blur(5px);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      max-width: 500px;
+      width: 100%;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+    }
+
+    h2 {
+      font-weight: 700;
+      color: #28a745;
+      margin-bottom: 15px;
+      text-align: center;
+    }
+
+    p.description {
+      text-align: center;
+      color: #555;
+      margin-bottom: 25px;
+    }
+
+    .camera-btn {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      width: 60px;
+      height: 60px;
+      background-color: #28a745;
+      color: white;
+      border-radius: 50%;
+      font-size: 1.5rem;
+      cursor: pointer;
+      transition: transform 0.2s ease, background-color 0.2s ease;
+    }
+
+    .camera-btn:hover {
+      transform: scale(1.1);
+      background-color: #218838;
+    }
+
+    #preview {
+      border-radius: 15px;
+      max-height: 300px;
+      object-fit: contain;
+      margin-top: 15px;
+      border: 2px solid #28a745;
+      display: none;
+    }
+
+    #loading {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-top: 10px;
+      text-align: center;
+      display: none;
+    }
+
+    .btn-success {
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 50px;
+      text-align: center;
+      color: #555;
+    }
+
+    footer .fw-semibold {
+      color: #28a745;
+    }
+
+    footer i {
+      margin-left: 5px;
+    }
+  </style>
 </head>
-
 <body>
-  <div class="container py-5 text-center">
-    <div class="card shadow-lg p-4 mx-auto rounded-4" style="max-width: 500px;">
-      <h2 class="fw-bold mb-3 text-success">🌿 Medicinal Leaf Classifier</h2>
-      <p class="text-muted mb-4">Upload or capture a leaf image to identify its medicinal type.</p>
+  <div class="container d-flex flex-column align-items-center">
 
-      <form id="upload-form" enctype="multipart/form-data">
+    <div class="card">
+      <h2>🌿 Medicinal Leaf Classifier</h2>
+      <p class="description">Upload or capture a leaf image to identify its medicinal type.</p>
+
+      <form id="upload-form" method="POST" enctype="multipart/form-data">
+
         <!-- Gallery Upload -->
         <div class="mb-3">
           <label for="imageUpload" class="form-label fw-semibold">Choose from gallery</label>
-          <input id="imageUpload" class="form-control form-control-lg" type="file" accept="image/*">
+          <input id="imageUpload" name="file" class="form-control form-control-lg" type="file" accept="image/*">
         </div>
 
         <!-- Camera Capture -->
-        <div class="my-4">
-          <label class="form-label fw-semibold">Or use your camera</label>
-          <div class="camera-btn" id="openCameraBtn">
-            <i class="bi bi-camera"></i>
-          </div>
-          <video id="cameraStream" autoplay playsinline style="display:none;" class="img-fluid rounded shadow-sm"></video>
+        <div class="my-4 text-center">
+          <label class="form-label fw-semibold d-block mb-2">Or use your camera</label>
+          <div class="camera-btn mx-auto mb-2" id="openCameraBtn"><i class="bi bi-camera"></i></div>
+          <video id="cameraStream" autoplay playsinline class="img-fluid rounded shadow-sm mb-2" style="display:none;"></video>
           <canvas id="cameraCanvas" style="display:none;"></canvas>
           <button type="button" id="captureBtn" class="btn btn-outline-success mt-2" style="display:none;">📸 Capture</button>
           <p class="small text-muted mt-2">Tap the camera button to open your webcam</p>
         </div>
 
         <!-- Preview -->
-        <img id="preview" class="img-fluid rounded mb-3 shadow-sm" style="display:none;" alt="Leaf Preview">
+        <img id="preview" class="img-fluid shadow-sm" alt="Leaf Preview">
 
-        <div id="loading" class="text-success fw-semibold" style="display:none;">Analyzing leaf... 🌱</div>
-        <button type="submit" class="btn btn-success w-100 py-2 mt-2">Predict</button>
+        <!-- Loading -->
+        <div id="loading" class="text-success">Analyzing leaf... 🌱</div>
+
+        <!-- Submit -->
+        <button type="submit" class="btn btn-success w-100 py-2 mt-3">Predict</button>
+
       </form>
     </div>
-    <footer class="mt-5 text-muted small">© 2025 Made by Ayuen, Malith, Biar, Akot & Deng</footer>
+
+    <!-- Footer -->
+    <footer>
+      <div class="d-flex flex-column flex-md-row justify-content-center align-items-center gap-2">
+        <span>© 2025 Made by</span>
+        <span class="fw-semibold">Ayuen</span>,
+        <span class="fw-semibold">Malith</span>,
+        <span class="fw-semibold">Biar</span>,
+        <span class="fw-semibold">Akot</span> & 
+        <span class="fw-semibold">Deng</span>
+      </div>
+      <div class="mt-2">
+        <i class="bi bi-leaf-fill text-success"></i>
+        <span class="small text-muted">All rights reserved</span>
+      </div>
+    </footer>
   </div>
 
   <script src="{{ url_for('static', filename='js/script.js') }}"></script>

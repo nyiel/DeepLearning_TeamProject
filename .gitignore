@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+*.h5
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Flask uploads
+static/uploads/

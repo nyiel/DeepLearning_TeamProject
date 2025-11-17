@@ -1,86 +1,97 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const uploadInput = document.getElementById("imageUpload");
-  const previewImg = document.getElementById("preview");
-  const uploadForm = document.getElementById("upload-form");
-  const loadingText = document.getElementById("loading");
+// DOM elements
+const openCameraBtn = document.getElementById('openCameraBtn');
+const cameraStream = document.getElementById('cameraStream');
+const cameraCanvas = document.getElementById('cameraCanvas');
+const captureBtn = document.getElementById('captureBtn');
+const preview = document.getElementById('preview');
+const imageInput = document.getElementById('imageUpload');
+const uploadForm = document.getElementById('upload-form');
+const loadingEl = document.getElementById('loading');
+let stream = null;
 
-  const openCameraBtn = document.getElementById("openCameraBtn");
-  const cameraStream = document.getElementById("cameraStream");
-  const captureBtn = document.getElementById("captureBtn");
-  const cameraCanvas = document.getElementById("cameraCanvas");
-
-  let stream;
-
-  // 📸 Open webcam
-  openCameraBtn.addEventListener("click", async () => {
+// Open camera
+openCameraBtn?.addEventListener('click', async () => {
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      cameraStream.srcObject = stream;
-      cameraStream.style.display = "block";
-      captureBtn.style.display = "inline-block";
-      previewImg.style.display = "none";
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        cameraStream.srcObject = stream;
+        cameraStream.style.display = 'block';
+        captureBtn.style.display = 'inline-block';
+        openCameraBtn.style.display = 'none';
     } catch (err) {
-      alert("Unable to access the camera: " + err.message);
+        console.error(err);
+        alert('Unable to access camera — please allow camera permission or upload an image.');
     }
-  });
+});
 
-  // 🖼️ Capture image from video
-  captureBtn.addEventListener("click", () => {
-    const ctx = cameraCanvas.getContext("2d");
+// Capture from camera
+captureBtn?.addEventListener('click', () => {
+    if (!stream) return alert('Camera not started.');
     cameraCanvas.width = cameraStream.videoWidth;
     cameraCanvas.height = cameraStream.videoHeight;
-    ctx.drawImage(cameraStream, 0, 0);
+    const ctx = cameraCanvas.getContext('2d');
+    ctx.drawImage(cameraStream, 0, 0, cameraCanvas.width, cameraCanvas.height);
 
-    cameraCanvas.toBlob((blob) => {
-      const file = new File([blob], "camera_capture.jpg", { type: "image/jpeg" });
-      showPreview(file);
-      uploadInput.files = new DataTransfer().files;
-      stopCamera();
-    }, "image/jpeg");
-  });
+    const dataUrl = cameraCanvas.toDataURL('image/jpeg', 0.95);
+    preview.src = dataUrl;
+    preview.style.display = 'block';
 
-  function stopCamera() {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      cameraStream.style.display = "none";
-      captureBtn.style.display = "none";
-    }
-  }
+    // stop camera
+    stream.getTracks().forEach(track => track.stop());
+    stream = null;
+    cameraStream.style.display = 'none';
+    captureBtn.style.display = 'none';
+    openCameraBtn.style.display = 'inline-grid';
+});
 
-  // 🖼️ Show preview
-  function showPreview(file) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      previewImg.src = e.target.result;
-      previewImg.style.display = "block";
-    };
-    reader.readAsDataURL(file);
-  }
-
-  uploadInput.addEventListener("change", (e) => showPreview(e.target.files[0]));
-
-  // 🚀 Predict leaf
-  uploadForm.addEventListener("submit", async (e) => {
+// Submit form
+uploadForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const file = uploadInput.files[0];
-    if (!file) return alert("Please upload or capture an image first!");
+    loadingEl.style.display = 'block';
 
-    const formData = new FormData();
-    formData.append("file", file);
-    loadingText.style.display = "block";
+    const fd = new FormData();
+
+    if (imageInput.files && imageInput.files[0]) {
+        fd.append('file', imageInput.files[0]);
+    } else if (preview.src && preview.src.startsWith('data:image')) {
+        const res = await fetch(preview.src);
+        const blob = await res.blob();
+        fd.append('file', blob, 'capture.jpg');
+    } else {
+        alert('Please upload or capture an image first.');
+        loadingEl.style.display = 'none';
+        return;
+    }
 
     try {
-      const res = await fetch("/predict", { method: "POST", body: formData });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-
-      localStorage.setItem("predictionData", JSON.stringify(data));
-      window.location.href = "/result";
+        const response = await fetch('/predict', { method: 'POST', body: fd });
+        if (response.redirected) {
+            window.location.href = response.url;
+            return;
+        }
+        const text = await response.text();
+        document.open();
+        document.write(text);
+        document.close();
     } catch (err) {
-      alert("Prediction failed: " + err.message);
+        console.error(err);
+        alert('Upload failed — try again');
     } finally {
-      loadingText.style.display = "none";
+        loadingEl.style.display = 'none';
     }
-  });
 });
+
+// Dark mode toggle
+(function () {
+    const key = 'mlc_theme';
+    const stored = localStorage.getItem(key) || 'light';
+    document.documentElement.setAttribute('data-theme', stored === 'dark' ? 'dark' : 'light');
+})();
+
+function toggleTheme() {
+    const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    const next = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('mlc_theme', next);
+}
+
+window.toggleTheme = toggleTheme;
