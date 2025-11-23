@@ -1,97 +1,80 @@
-// DOM elements
-const openCameraBtn = document.getElementById('openCameraBtn');
-const cameraStream = document.getElementById('cameraStream');
-const cameraCanvas = document.getElementById('cameraCanvas');
-const captureBtn = document.getElementById('captureBtn');
-const preview = document.getElementById('preview');
-const imageInput = document.getElementById('imageUpload');
-const uploadForm = document.getElementById('upload-form');
-const loadingEl = document.getElementById('loading');
-let stream = null;
+document.addEventListener("DOMContentLoaded", () => {
+    const openCameraBtn = document.getElementById("openCameraBtn");
+    const video = document.getElementById("cameraStream");
+    const canvas = document.getElementById("cameraCanvas");
+    const captureBtn = document.getElementById("captureBtn");
+    const preview = document.getElementById("preview");
+    const fileInput = document.getElementById("imageUpload");
+    const uploadForm = document.getElementById("upload-form");
+    const loadingDiv = document.getElementById("loading");
+    let stream = null;
 
-// Open camera
-openCameraBtn?.addEventListener('click', async () => {
-    try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        cameraStream.srcObject = stream;
-        cameraStream.style.display = 'block';
-        captureBtn.style.display = 'inline-block';
-        openCameraBtn.style.display = 'none';
-    } catch (err) {
-        console.error(err);
-        alert('Unable to access camera — please allow camera permission or upload an image.');
-    }
-});
-
-// Capture from camera
-captureBtn?.addEventListener('click', () => {
-    if (!stream) return alert('Camera not started.');
-    cameraCanvas.width = cameraStream.videoWidth;
-    cameraCanvas.height = cameraStream.videoHeight;
-    const ctx = cameraCanvas.getContext('2d');
-    ctx.drawImage(cameraStream, 0, 0, cameraCanvas.width, cameraCanvas.height);
-
-    const dataUrl = cameraCanvas.toDataURL('image/jpeg', 0.95);
-    preview.src = dataUrl;
-    preview.style.display = 'block';
-
-    // stop camera
-    stream.getTracks().forEach(track => track.stop());
-    stream = null;
-    cameraStream.style.display = 'none';
-    captureBtn.style.display = 'none';
-    openCameraBtn.style.display = 'inline-grid';
-});
-
-// Submit form
-uploadForm?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    loadingEl.style.display = 'block';
-
-    const fd = new FormData();
-
-    if (imageInput.files && imageInput.files[0]) {
-        fd.append('file', imageInput.files[0]);
-    } else if (preview.src && preview.src.startsWith('data:image')) {
-        const res = await fetch(preview.src);
-        const blob = await res.blob();
-        fd.append('file', blob, 'capture.jpg');
-    } else {
-        alert('Please upload or capture an image first.');
-        loadingEl.style.display = 'none';
-        return;
-    }
-
-    try {
-        const response = await fetch('/predict', { method: 'POST', body: fd });
-        if (response.redirected) {
-            window.location.href = response.url;
-            return;
+    // 1. Open Camera
+    openCameraBtn.addEventListener("click", async () => {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment" } // Prefer back camera on mobile
+            });
+            video.srcObject = stream;
+            video.style.display = "block";
+            captureBtn.style.display = "inline-block";
+            openCameraBtn.style.display = "none";
+            preview.style.display = "none";
+        } catch (err) {
+            alert("Could not access camera: " + err);
         }
-        const text = await response.text();
-        document.open();
-        document.write(text);
-        document.close();
-    } catch (err) {
-        console.error(err);
-        alert('Upload failed — try again');
-    } finally {
-        loadingEl.style.display = 'none';
+    });
+
+    // 2. Capture Photo
+    captureBtn.addEventListener("click", () => {
+        const context = canvas.getContext("2d");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Convert canvas to Blob -> File
+        canvas.toBlob((blob) => {
+            const file = new File([blob], "camera_capture.jpg", { type: "image/jpeg" });
+            
+            // Create a DataTransfer to update the file input
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            fileInput.files = dataTransfer.files;
+
+            // Show Preview
+            preview.src = URL.createObjectURL(file);
+            preview.style.display = "block";
+            
+            // Stop Stream
+            stopCamera();
+        }, "image/jpeg");
+    });
+
+    // 3. Stop Camera Helper
+    function stopCamera() {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            video.style.display = "none";
+            captureBtn.style.display = "none";
+            openCameraBtn.style.display = "inline-flex";
+        }
     }
+
+    // 4. Handle Gallery Selection Preview
+    fileInput.addEventListener("change", function() {
+        if (this.files && this.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+                preview.style.display = "block";
+                stopCamera(); // Close camera if user switches to gallery
+            }
+            reader.readAsDataURL(this.files[0]);
+        }
+    });
+
+    // 5. Show Loading on Submit
+    uploadForm.addEventListener("submit", () => {
+        loadingDiv.style.display = "block";
+    });
 });
-
-// Dark mode toggle
-(function () {
-    const key = 'mlc_theme';
-    const stored = localStorage.getItem(key) || 'light';
-    document.documentElement.setAttribute('data-theme', stored === 'dark' ? 'dark' : 'light');
-})();
-
-function toggleTheme() {
-    const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-    const next = cur === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('mlc_theme', next);
-}
-
-window.toggleTheme = toggleTheme;
